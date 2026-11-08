@@ -89,6 +89,17 @@ section{padding:clamp(4rem,10vw,8rem) 0 0}
 .stage h1,.stage p{z-index:2}
 .stage .more-w{position:relative;z-index:2;text-align:left;margin-top:2.25rem}
 .stage .c-btn:not(:hover){border-color:#ecebe8;color:#ecebe8}
+.ctl output{display:inline-block;min-width:6.5rem;color:var(--ink);font-variant-numeric:tabular-nums}
+.refs{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:2rem;margin-top:2rem}
+.ref h3{font:500 .8rem/1 'DM Sans',system-ui,sans-serif;letter-spacing:.2em;text-transform:uppercase;color:var(--mute);margin:0 0 .75rem}
+.ref ul{list-style:none;margin:0;padding:0;max-height:24rem;overflow:auto;border-top:1px solid var(--line)}
+.ref li button{all:unset;box-sizing:border-box;width:100%;display:grid;grid-template-columns:minmax(6.5rem,9.5rem) 1fr;gap:.75rem;align-items:center;padding:.6rem .4rem;border-bottom:1px solid var(--line);cursor:pointer;font-size:.95rem}
+.ref li button b{font-weight:500;font-variant-numeric:tabular-nums;display:flex;gap:.5rem;align-items:center}
+.ref li button i{width:.8rem;height:.8rem;border-radius:50%;flex:none}
+.ref li button span{color:var(--mute)}
+.ref li button:hover,.ref li button[aria-current="true"]{background:rgba(255,179,107,.14)}
+.ref li button[aria-current="true"] b{color:var(--accent)}
+.ref li button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 header strong{color:#fff;mix-blend-mode:difference}
 .logo{display:block;line-height:0;mix-blend-mode:difference}
 .logo svg{display:block;height:clamp(1.7rem,4vw,2.9rem);width:auto}
@@ -223,14 +234,15 @@ dialog{width:min(96vw,1400px);max-height:94vh;max-height:94svh}
 
 <section id="rig">
 <p class="lead">Light it yourself.</p>
-<p class="label">Drag the light around the sphere, or use the arrow keys, to see key, rim and shadow change.</p>
+<p class="label">Drag the light around the sphere, or use the arrow keys, to see key, rim and shadow change. Intensity is shown in lux and colour in Kelvin. Tap any value below to set the light to it.</p>
 <div class="rig" id="rig-box"><div class="floor" id="floor"></div><div class="ball" id="ball"></div><button class="lamp" id="lamp" aria-label="Key light. Use arrow keys to move it."></button></div>
 <div class="ctl">
 <div class="presets"><button data-p="character">Character</button><button data-p="environment">Environment</button><button data-p="cinematic">Cinematic</button></div>
-<label>Intensity <input type="range" id="r-i" min="20" max="100" value="90"></label>
-<label>Cool to warm <input type="range" id="r-w" min="0" max="100" value="75"></label>
+<label>Intensity <output id="o-i"></output><input type="range" id="r-i" min="0" max="100" value="88" aria-label="Intensity in lux"></label>
+<label>Cool to warm <output id="o-w"></output><input type="range" id="r-w" min="0" max="100" value="75" aria-label="Colour temperature in Kelvin"></label>
 <label>Rim light <input type="range" id="r-r" min="0" max="100" value="85"></label>
 </div>
+<div class="refs"><div class="ref" id="ref-l"><h3>Intensity (lux)</h3><ul></ul></div><div class="ref" id="ref-k"><h3>Cool to warm (Kelvin)</h3><ul></ul></div></div>
 </section>
 
 <section id="about" class="two">
@@ -309,26 +321,42 @@ document.querySelectorAll('.filters button').forEach(function(f){f.onclick=funct
 apply('all');
 $('more').onclick=function(){$('fl').hidden=false;$('mw').hidden=true;$('grid').hidden=false;$('wl').hidden=false;document.querySelectorAll('.filters button').forEach(function(o){o.setAttribute('aria-pressed',o.dataset.f==='all')});apply('all');$('wl').scrollIntoView({behavior:'smooth',block:'start'})};
 (function(){
-var box=document.getElementById('rig-box'),ball=document.getElementById('ball'),lamp=document.getElementById('lamp'),floor=document.getElementById('floor'),ri=document.getElementById('r-i'),rw=document.getElementById('r-w'),rr=document.getElementById('r-r'),drag=false;
-var S={x:.25,y:.3,i:.9,w:.75,r:.85};
-var P={character:{x:.25,y:.3,i:.9,w:.75,r:.85},environment:{x:.5,y:.08,i:.7,w:.6,r:.2},cinematic:{x:.84,y:.55,i:.65,w:.15,r:.9}};
-function mix(a,b,t){return Math.round(a+(b-a)*t)}
-function col(t){return [mix(143,255,t),mix(180,179,t),mix(255,107,t)].join(',')}
+var box=$('rig-box'),ball=$('ball'),lamp=$('lamp'),floor=$('floor'),ri=$('r-i'),rw=$('r-w'),rr=$('r-r'),oi=$('o-i'),ow=$('o-w'),drag=false;
+var S={x:.25,y:.3,i:.88,w:.75,r:.85};
+var P={character:{x:.25,y:.3,i:.88,w:.75,r:.85},environment:{x:.5,y:.08,i:.65,w:.6,r:.2},cinematic:{x:.84,y:.55,i:.6,w:.15,r:.9}};
+var LX=[{n:'No Moon / Night',t:'&lt; 0.01 lx',v:.01},{n:'Full Moonlight',t:'~0.2 to 1 lx',v:.45},{n:'Street Lighting',t:'5 to 20 lx',v:10},{n:'Office Desk / Workstation',t:'300 to 500 lx',v:390},{n:'Supermarket / Kitchen Worktop',t:'500 to 750 lx',v:610},{n:'Direct Sunlight',t:'32,000 to 120,000 lx',v:62000}];
+var KL=[{k:1000,t:'1,000 K',n:'Most commercial electric heating elements'},{k:1700,t:'1,700 K',n:'Match flame, low-pressure sodium lamps (LPS/SOX)'},{k:1850,t:'1,850 K',n:'Candle flame, sunset/sunrise'},{k:2400,t:'2,400 K',n:'Standard incandescent lamps'},{k:2550,t:'2,550 K',n:'Soft white incandescent lamps'},{k:2700,t:'2,700 K',n:'\u201cSoft white\u201d compact fluorescent and LED lamps'},{k:3000,t:'3,000 K',n:'Warm white compact fluorescent and LED lamps'},{k:3200,t:'3,200 K',n:'Studio lamps, photofloods, etc.'},{k:3350,t:'3,350 K',n:'Studio \u201cCP\u201d light'},{k:5000,t:'5,000 K',n:'Horizon daylight, tubular fluorescent lamps, or cool white/daylight compact fluorescent and LED lamps'},{k:5750,t:'5,500\u20136,000 K',n:'Vertical daylight, electronic flash'},{k:6200,t:'6,200 K',n:'Xenon short-arc lamp'},{k:6500,t:'6,500 K',n:'Daylight, overcast, daylight LED lamps'},{k:8000,t:'6,500\u20139,500 K',n:'LCD or CRT screens'},{k:15000,t:'15,000\u201327,000 K',n:'Clear blue poleward sky'},{k:null,t:'\u221e K',n:'Theoretical upper limit based on black-body radiation calculations (Wien \u221e K)'}];
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function lux(i){return Math.pow(10,-2+7.079*i)}
+function kel(w){return 1000*Math.pow(15,1-w)}
+function rgb(K){var t=K/100,r,g,b;r=t<=66?255:329.698727446*Math.pow(t-60,-.1332047592);g=t<=66?99.4708025861*Math.log(t)-161.1195681661:288.1221695283*Math.pow(t-60,-.0755148492);b=t>=66?255:(t<=19?0:138.5177312231*Math.log(t-10)-305.0447927307);return [r,g,b].map(function(v){return Math.round(clamp(v,0,255))}).join(',')}
+function fl(x){return (x<1?x.toFixed(2):x<10?x.toFixed(1):Math.round(x).toLocaleString('en-US'))+' lx'}
+function fk(K){return (Math.round(K/10)*10).toLocaleString('en-US')+' K'}
+function build(id,arr,html,pick){var ul=$(id).querySelector('ul');arr.forEach(function(it){var li=document.createElement('li'),b=document.createElement('button');b.type='button';b.innerHTML=html(it);b.onclick=function(){pick(it);sync();draw()};li.appendChild(b);ul.appendChild(li)})}
+build('ref-l',LX,function(it){return '<b>'+it.t+'</b><span>'+it.n+'</span>'},function(it){S.i=clamp((Math.log(it.v)/Math.LN10+2)/7.079,0,1)});
+build('ref-k',KL,function(it){return '<b><i style="background:rgb('+rgb(it.k||15000)+')"></i>'+it.t+'</b><span>'+it.n+'</span>'},function(it){if(it.k!=null)S.w=clamp(1-Math.log(clamp(it.k,1000,15000)/1000)/Math.log(15),0,1)});
+function mark(){
+var L=Math.log(lux(S.i)),bi=0,bd=1e9;LX.forEach(function(it,n){var d=Math.abs(L-Math.log(it.v));if(d<bd){bd=d;bi=n}});
+$('ref-l').querySelectorAll('button').forEach(function(b,n){b.setAttribute('aria-current',n===bi)});
+var K=Math.log(kel(S.w)),bk=0;bd=1e9;KL.forEach(function(it,n){if(it.k==null)return;var d=Math.abs(K-Math.log(it.k));if(d<bd){bd=d;bk=n}});
+$('ref-k').querySelectorAll('button').forEach(function(b,n){b.setAttribute('aria-current',n===bk)})}
+function sync(){ri.value=Math.round(S.i*100);rw.value=Math.round(S.w*100);rr.value=Math.round(S.r*100)}
 function draw(){
-var bw=box.clientWidth,bh=box.clientHeight,lx=S.x*bw,ly=S.y*bh,cx=bw/2,cy=bh/2-ball.offsetHeight*.08,dx=lx-cx,dy=ly-cy,d=Math.hypot(dx,dy)||1,ux=dx/d,uy=dy/d,k=col(S.w),rc=col(1-S.w);
-ball.style.background='radial-gradient(circle at '+(50+ux*32)+'% '+(50+uy*32)+'%,rgba('+k+','+S.i+') 0,rgba('+k+','+(S.i*.35)+') 42%,#0c0d10 82%)';
+var bw=box.clientWidth,bh=box.clientHeight,lx=S.x*bw,ly=S.y*bh,cx=bw/2,cy=bh/2-ball.offsetHeight*.08,dx=lx-cx,dy=ly-cy,d=Math.hypot(dx,dy)||1,ux=dx/d,uy=dy/d,B=.15+.85*S.i,k=rgb(kel(S.w)),rc=rgb(kel(1-S.w));
+ball.style.background='radial-gradient(circle at '+(50+ux*32)+'% '+(50+uy*32)+'%,rgba('+k+','+B+') 0,rgba('+k+','+(B*.35)+') 42%,#0c0d10 82%)';
 ball.style.boxShadow='inset '+(ux*14*S.r)+'px '+(uy*14*S.r)+'px 14px -6px rgba('+rc+','+S.r+')';
-floor.style.transform='translate(calc(-50% + '+(-ux*50*S.i)+'px),0)';floor.style.opacity=.3+.7*S.i;
-box.style.backgroundImage='radial-gradient(circle 320px at '+lx+'px '+ly+'px,rgba('+k+','+(.28*S.i)+'),transparent 70%)';
-lamp.style.left=lx+'px';lamp.style.top=ly+'px';lamp.style.setProperty('--c',k)}
-function pos(e){var r=box.getBoundingClientRect();S.x=Math.min(1,Math.max(0,(e.clientX-r.left)/r.width));S.y=Math.min(1,Math.max(0,(e.clientY-r.top)/r.height));draw()}
+floor.style.transform='translate(calc(-50% + '+(-ux*50*B)+'px),0)';floor.style.opacity=.3+.7*B;
+box.style.backgroundImage='radial-gradient(circle 320px at '+lx+'px '+ly+'px,rgba('+k+','+(.28*B)+'),transparent 70%)';
+lamp.style.left=lx+'px';lamp.style.top=ly+'px';lamp.style.setProperty('--c',k);
+oi.textContent=fl(lux(S.i));ow.textContent=fk(kel(S.w));mark()}
+function pos(e){var r=box.getBoundingClientRect();S.x=clamp((e.clientX-r.left)/r.width,0,1);S.y=clamp((e.clientY-r.top)/r.height,0,1);draw()}
 box.addEventListener('pointerdown',function(e){drag=true;box.setPointerCapture(e.pointerId);pos(e)});
 box.addEventListener('pointermove',function(e){if(drag)pos(e)});
 box.addEventListener('pointerup',function(){drag=false});
-lamp.addEventListener('keydown',function(e){var m={ArrowLeft:[-.03,0],ArrowRight:[.03,0],ArrowUp:[0,-.03],ArrowDown:[0,.03]}[e.key];if(m){e.preventDefault();S.x=Math.min(1,Math.max(0,S.x+m[0]));S.y=Math.min(1,Math.max(0,S.y+m[1]));draw()}});
+lamp.addEventListener('keydown',function(e){var m={ArrowLeft:[-.03,0],ArrowRight:[.03,0],ArrowUp:[0,-.03],ArrowDown:[0,.03]}[e.key];if(m){e.preventDefault();S.x=clamp(S.x+m[0],0,1);S.y=clamp(S.y+m[1],0,1);draw()}});
 ri.oninput=function(){S.i=ri.value/100;draw()};rw.oninput=function(){S.w=rw.value/100;draw()};rr.oninput=function(){S.r=rr.value/100;draw()};
-document.querySelectorAll('.presets button').forEach(function(b){b.onclick=function(){S=Object.assign({},P[b.dataset.p]);ri.value=S.i*100;rw.value=S.w*100;rr.value=S.r*100;draw()}});
-addEventListener('resize',draw);draw()})();
+document.querySelectorAll('.presets button').forEach(function(b){b.onclick=function(){S=Object.assign({},P[b.dataset.p]);sync();draw()}});
+addEventListener('resize',draw);sync();draw()})();
 (function(){
 var L=document.getElementById('loader');if(!L)return;
 var de=document.documentElement,n=document.getElementById('ldn'),loaded=document.readyState==='complete',MIN=3200,t0=performance.now();
